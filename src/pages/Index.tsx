@@ -188,7 +188,7 @@ function DeviceMap({ devices, selected, onSelect }: {
     s === "online" ? "#22c55e" : s === "warning" ? "#f97316" : "#ef4444";
 
   return (
-    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ height }}>
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ height: h }}>
       {Array.from({ length: 6 }, (_, i) => (
         <line key={`hg${i}`} x1={0} y1={(h / 5) * i} x2={w} y2={(h / 5) * i}
           stroke="rgba(0,212,220,0.06)" strokeWidth="1" />
