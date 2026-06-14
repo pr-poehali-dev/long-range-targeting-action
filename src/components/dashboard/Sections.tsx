@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import { Device, Alert, HistoryEntry, DEVICES, ALERTS, HISTORY, statusColor, statusLabel } from "./types";
 import { MiniChart, RealtimeChart, DeviceMap, StatCard } from "./Charts";
@@ -508,6 +509,268 @@ export function ApiSection() {
               <span className="text-[10px] font-mono text-muted-foreground flex-shrink-0 hidden sm:block">{e.desc}</span>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Recognition ─────────────────────────────────────────────────────────────
+
+type ThreatLevel = "low" | "medium" | "high" | "critical";
+
+interface RecognitionResult {
+  type: string;
+  subtype: string;
+  threat: ThreatLevel;
+  confidence: number;
+  speed: string;
+  altitude: string;
+  rcs: string;
+  recommendation: string;
+}
+
+const MOCK_RESULTS: RecognitionResult[] = [
+  { type: "Мультироторный дрон", subtype: "DJI Mavic класс", threat: "medium", confidence: 91, speed: "~45 км/ч", altitude: "~120 м", rcs: "0.01 м²", recommendation: "Отслеживать. Применить РЭБ при сближении < 300м." },
+  { type: "Самолёт", subtype: "Лёгкий БПЛА-крыло", threat: "high", confidence: 84, speed: "~180 км/ч", altitude: "~500 м", rcs: "0.05 м²", recommendation: "Высокая угроза. Немедленно оповестить оператора." },
+  { type: "Вертолёт", subtype: "Разведывательный", threat: "critical", confidence: 97, speed: "~120 км/ч", altitude: "~200 м", rcs: "0.8 м²", recommendation: "КРИТИЧНО. Задействовать средства противодействия." },
+  { type: "Мультироторный дрон", subtype: "FPV-камикадзе", threat: "critical", confidence: 88, speed: "~120 км/ч", altitude: "~80 м", rcs: "0.005 м²", recommendation: "КРИТИЧНО. Немедленное поражение." },
+];
+
+const threatConfig: Record<ThreatLevel, { label: string; color: string }> = {
+  low:      { label: "НИЗКАЯ",    color: "#22c55e" },
+  medium:   { label: "СРЕДНЯЯ",   color: "#f97316" },
+  high:     { label: "ВЫСОКАЯ",   color: "#ef4444" },
+  critical: { label: "КРИТИЧНАЯ", color: "#dc2626" },
+};
+
+export function RecognitionSection() {
+  const [apiUrl, setApiUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RecognitionResult | null>(null);
+  const [history, setHistory] = useState<(RecognitionResult & { file: string; time: string })[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = ev => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleAnalyze = () => {
+    if (!imagePreview) return;
+    setLoading(true);
+    setResult(null);
+    setTimeout(() => {
+      const r = MOCK_RESULTS[Math.floor(Math.random() * MOCK_RESULTS.length)];
+      setResult(r);
+      setHistory(prev => [{ ...r, file: fileName ?? "image", time: new Date().toLocaleTimeString("ru-RU") }, ...prev.slice(0, 9)]);
+      setLoading(false);
+    }, 1800);
+  };
+
+  const tc = result ? threatConfig[result.threat] : null;
+
+  return (
+    <div className="flex flex-col gap-4 animate-fade-up">
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Распознано сегодня" value={history.length} icon="ScanSearch" color="#00d4dc" />
+        <StatCard label="Критических угроз" value={history.filter(h => h.threat === "critical").length} icon="AlertOctagon" color="#ef4444" />
+        <StatCard label="Точность модели" value="91" unit="%" icon="Target" color="#22c55e" />
+        <StatCard label="Статус API" value={apiUrl ? "ГОТОВ" : "НЕ ЗАДАН"} icon="Plug" color={apiUrl ? "#22c55e" : "#6b7280"} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        <div className="lg:col-span-2 flex flex-col gap-3">
+
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+              <Icon name="Plug" size={13} style={{ color: "hsl(185 90% 50%)" }} />
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Конфигурация API</span>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <div>
+                <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block mb-1.5">URL эндпоинта</label>
+                <input
+                  value={apiUrl}
+                  onChange={e => setApiUrl(e.target.value)}
+                  placeholder="https://api.example.com/recognize"
+                  className="w-full bg-secondary/40 border border-border rounded px-3 py-2 text-xs font-mono outline-none focus:border-[hsl(185_90%_50%/0.5)] transition-colors placeholder:text-muted-foreground/40"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block mb-1.5">API ключ</label>
+                <input
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  type="password"
+                  placeholder="sk-••••••••••••••••"
+                  className="w-full bg-secondary/40 border border-border rounded px-3 py-2 text-xs font-mono outline-none focus:border-[hsl(185_90%_50%/0.5)] transition-colors placeholder:text-muted-foreground/40"
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: apiUrl && apiKey ? "#22c55e" : "#6b7280" }} />
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {apiUrl && apiKey ? "Параметры заданы · Режим заглушки" : "Заполните поля для подключения"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+              <Icon name="Upload" size={13} style={{ color: "hsl(185 90% 50%)" }} />
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Загрузка изображения</span>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="border border-dashed border-border rounded-lg p-6 flex flex-col items-center gap-2 hover:border-[hsl(185_90%_50%/0.5)] transition-colors group w-full"
+              >
+                {imagePreview ? (
+                  <img src={imagePreview} alt="preview" className="w-full max-h-32 object-contain rounded" />
+                ) : (
+                  <>
+                    <Icon name="ImagePlus" size={24} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <span className="text-[11px] font-mono text-muted-foreground">Нажмите для выбора файла</span>
+                    <span className="text-[10px] font-mono text-muted-foreground/60">JPG, PNG, WEBP до 10 МБ</span>
+                  </>
+                )}
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              {fileName && (
+                <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                  <Icon name="FileImage" size={11} />
+                  <span className="truncate flex-1">{fileName}</span>
+                  <button onClick={() => { setImagePreview(null); setFileName(null); setResult(null); }} className="hover:text-red-400 transition-colors">
+                    <Icon name="X" size={11} />
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={handleAnalyze}
+                disabled={!imagePreview || loading}
+                className="flex items-center justify-center gap-2 py-2.5 rounded border text-xs font-mono transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{
+                  borderColor: "hsl(185 90% 50% / 0.5)",
+                  color: "hsl(185 90% 50%)",
+                  background: imagePreview && !loading ? "hsl(185 90% 50% / 0.08)" : "transparent"
+                }}
+              >
+                {loading ? (
+                  <><Icon name="Loader" size={13} className="animate-spin" />АНАЛИЗ...</>
+                ) : (
+                  <><Icon name="ScanSearch" size={13} />РАСПОЗНАТЬ</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-3 flex flex-col gap-3">
+
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+              <Icon name="Target" size={13} style={{ color: "hsl(185 90% 50%)" }} />
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Результат распознавания</span>
+            </div>
+
+            {!result && !loading && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                <Icon name="ScanSearch" size={32} className="opacity-20" />
+                <span className="text-xs font-mono">Загрузите изображение и нажмите «Распознать»</span>
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="relative w-12 h-12">
+                  <div className="absolute inset-0 rounded-full border-2 border-[hsl(185_90%_50%/0.2)]" />
+                  <div className="absolute inset-0 rounded-full border-2 border-t-[hsl(185_90%_50%)] animate-spin" />
+                </div>
+                <span className="text-xs font-mono text-muted-foreground animate-pulse">Отправка запроса на распознавание...</span>
+              </div>
+            )}
+
+            {result && tc && (
+              <div className="p-4 flex flex-col gap-4">
+                <div className="rounded-lg px-4 py-3 flex items-center gap-3 border"
+                  style={{ background: tc.color + "12", borderColor: tc.color + "40" }}>
+                  <Icon name="AlertOctagon" size={20} style={{ color: tc.color, flexShrink: 0 }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-mono font-bold" style={{ color: tc.color }}>УГРОЗА: {tc.label}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{result.recommendation}</div>
+                  </div>
+                  <div className="ml-auto text-right flex-shrink-0">
+                    <div className="text-lg font-mono font-bold" style={{ color: tc.color }}>{result.confidence}%</div>
+                    <div className="text-[10px] font-mono text-muted-foreground">уверенность</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-secondary/40 rounded p-3">
+                    <div className="text-[10px] font-mono text-muted-foreground mb-1">Тип объекта</div>
+                    <div className="text-sm font-mono font-bold" style={{ color: "hsl(185 90% 50%)" }}>{result.type}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{result.subtype}</div>
+                  </div>
+                  <div className="bg-secondary/40 rounded p-3">
+                    <div className="text-[10px] font-mono text-muted-foreground mb-1">Параметры цели</div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] font-mono">Скорость: <span style={{ color: "hsl(185 90% 50%)" }}>{result.speed}</span></span>
+                      <span className="text-[11px] font-mono">Высота: <span style={{ color: "hsl(185 90% 50%)" }}>{result.altitude}</span></span>
+                      <span className="text-[11px] font-mono">ЭПР: <span style={{ color: "hsl(185 90% 50%)" }}>{result.rcs}</span></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {["ОТСЛЕЖИВАТЬ", "РЭБ", "ОПОВЕСТИТЬ"].map(a => (
+                    <button key={a}
+                      className="flex-1 text-[10px] font-mono py-2 rounded border border-border hover:border-[hsl(185_90%_50%/0.5)] hover:text-[hsl(185_90%_50%)] transition-colors text-muted-foreground">
+                      {a}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {history.length > 0 && (
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+                <Icon name="History" size={13} style={{ color: "hsl(185 90% 50%)" }} />
+                <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">История распознавания</span>
+              </div>
+              <div className="divide-y divide-border">
+                {history.map((h, i) => {
+                  const htc = threatConfig[h.threat];
+                  return (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/30 transition-colors">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: htc.color }} />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-mono truncate block">{h.type}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground truncate block">{h.file}</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded border flex-shrink-0"
+                        style={{ color: htc.color, borderColor: htc.color + "40", background: htc.color + "10" }}>
+                        {htc.label}
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground flex-shrink-0">{h.time}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

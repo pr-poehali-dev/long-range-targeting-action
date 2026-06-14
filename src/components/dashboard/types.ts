@@ -1,6 +1,6 @@
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type Section = "dashboard" | "devices" | "monitor" | "alerts" | "history" | "settings" | "api";
+export type Section = "dashboard" | "devices" | "monitor" | "alerts" | "history" | "recognition" | "settings" | "api";
 
 export interface Device {
   id: string;

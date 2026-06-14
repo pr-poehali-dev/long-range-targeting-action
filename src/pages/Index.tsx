@@ -8,6 +8,7 @@ import {
   MonitorSection,
   AlertsSection,
   HistorySection,
+  RecognitionSection,
   SettingsSection,
   ApiSection,
 } from "@/components/dashboard/Sections";
@@ -36,6 +37,7 @@ export default function Index() {
     { id: "monitor", label: "Мониторинг", icon: "Activity" },
     { id: "alerts", label: "Оповещения", icon: "Bell", badge: alertCount },
     { id: "history", label: "История", icon: "History" },
+    { id: "recognition", label: "Распознавание", icon: "ScanSearch" },
     { id: "settings", label: "Настройки", icon: "Settings" },
     { id: "api", label: "API", icon: "Code2" },
   ];
@@ -135,6 +137,7 @@ export default function Index() {
           {section === "monitor" && <MonitorSection devices={devicesWithStatus} />}
           {section === "alerts" && <AlertsSection alertCount={alertCount} />}
           {section === "history" && <HistorySection />}
+          {section === "recognition" && <RecognitionSection />}
           {section === "settings" && <SettingsSection />}
           {section === "api" && <ApiSection />}
         </main>
