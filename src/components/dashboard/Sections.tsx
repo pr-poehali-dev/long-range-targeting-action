@@ -8,15 +8,17 @@ export function DashboardSection({
   alertCount,
   selectedDevice,
   setSelectedDevice,
+  devices,
 }: {
   alertCount: number;
   selectedDevice: string | null;
   setSelectedDevice: (id: string) => void;
+  devices: Device[];
 }) {
   return (
     <div className="flex flex-col gap-5 animate-fade-up">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Устройств онлайн" value={DEVICES.filter(d => d.status === "online").length} unit={`/ ${DEVICES.length}`} icon="Cpu" color="#22c55e" trend="↑ стабильно" />
+        <StatCard label="Устройств онлайн" value={devices.filter(d => d.status === "online").length} unit={`/ ${devices.length}`} icon="Cpu" color="#22c55e" trend="↑ стабильно" />
         <StatCard label="Макс. дальность" value="1480" unit="м" icon="Radar" color="#00d4dc" />
         <StatCard label="Средний сигнал" value="75" unit="%" icon="Signal" color="#00d4dc" trend="↓ -3% за час" />
         <StatCard label="Активных тревог" value={alertCount} icon="AlertTriangle" color="#f97316" />
@@ -32,7 +34,7 @@ export function DashboardSection({
             <span className="text-[10px] font-mono text-muted-foreground">55.75°N 37.62°E</span>
           </div>
           <div className="p-3" style={{ background: "hsl(220 20% 7%)" }}>
-            <DeviceMap devices={DEVICES} selected={selectedDevice} onSelect={setSelectedDevice} />
+            <DeviceMap devices={devices} selected={selectedDevice} onSelect={setSelectedDevice} />
           </div>
           <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border">
             {(["online", "warning", "offline"] as Device["status"][]).map(s => (
@@ -49,7 +51,7 @@ export function DashboardSection({
             <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Статус устройств</span>
           </div>
           <div className="divide-y divide-border">
-            {DEVICES.map(d => (
+            {devices.map(d => (
               <button
                 key={d.id}
                 onClick={() => setSelectedDevice(d.id)}
@@ -101,6 +103,8 @@ export function DevicesSection({
   cmdLog,
   setCmdLog,
   handleCommand,
+  devices,
+  onShutdown,
 }: {
   selectedDevice: string | null;
   setSelectedDevice: (id: string) => void;
@@ -109,8 +113,11 @@ export function DevicesSection({
   cmdLog: string[];
   setCmdLog: (fn: (prev: string[]) => string[]) => void;
   handleCommand: () => void;
+  devices: Device[];
+  onShutdown: (id: string) => void;
 }) {
-  const activeDevice = DEVICES.find(d => d.id === selectedDevice) || DEVICES[0];
+  const activeDevice = devices.find(d => d.id === selectedDevice) || devices[0];
+  const isOffline = activeDevice.status === "offline";
 
   return (
     <div className="flex flex-col gap-4 animate-fade-up">
@@ -123,7 +130,7 @@ export function DevicesSection({
             </button>
           </div>
           <div className="divide-y divide-border">
-            {DEVICES.map(d => (
+            {devices.map(d => (
               <button key={d.id} onClick={() => setSelectedDevice(d.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/50 transition-colors text-left ${selectedDevice === d.id ? "bg-[hsl(185_90%_50%/0.07)] border-l-2 border-[hsl(185_90%_50%)]" : ""}`}>
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: statusColor(d.status) }} />
@@ -144,10 +151,24 @@ export function DevicesSection({
                 <div className="text-lg font-mono font-bold" style={{ color: "hsl(185 90% 50%)" }}>{activeDevice.name}</div>
                 <div className="text-xs font-mono text-muted-foreground mt-0.5">{activeDevice.id} · {activeDevice.distance}м от базы</div>
               </div>
-              <span className="text-xs font-mono px-2 py-1 rounded border"
-                style={{ color: statusColor(activeDevice.status), borderColor: statusColor(activeDevice.status) + "50", background: statusColor(activeDevice.status) + "15" }}>
-                {statusLabel(activeDevice.status)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono px-2 py-1 rounded border"
+                  style={{ color: statusColor(activeDevice.status), borderColor: statusColor(activeDevice.status) + "50", background: statusColor(activeDevice.status) + "15" }}>
+                  {statusLabel(activeDevice.status)}
+                </span>
+                {/* ── Кнопка отключения / включения ── */}
+                <button
+                  onClick={() => onShutdown(activeDevice.id)}
+                  className={`flex items-center gap-1.5 text-[11px] font-mono px-3 py-1.5 rounded border transition-all duration-150 ${
+                    isOffline
+                      ? "border-green-500/40 text-green-400 hover:bg-green-500/10"
+                      : "border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  }`}
+                >
+                  <Icon name={isOffline ? "Power" : "PowerOff"} size={11} />
+                  {isOffline ? "ВКЛЮЧИТЬ" : "ОТКЛЮЧИТЬ"}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
@@ -156,7 +177,7 @@ export function DevicesSection({
                 { label: "Темп.", value: `${activeDevice.temp}°C`, icon: "Thermometer" },
                 { label: "Последний сеанс", value: activeDevice.lastSeen, icon: "Clock" },
               ].map(item => (
-                <div key={item.label} className="bg-secondary/40 rounded p-3">
+                <div key={item.label} className={`bg-secondary/40 rounded p-3 transition-opacity ${isOffline ? "opacity-40" : ""}`}>
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Icon name={item.icon} size={11} className="text-muted-foreground" />
                     <span className="text-[10px] font-mono text-muted-foreground">{item.label}</span>
@@ -177,7 +198,8 @@ export function DevicesSection({
                 {["PING", "ACTIVATE", "CALIBRATE", "STATUS"].map(cmd => (
                   <button key={cmd}
                     onClick={() => setCmdLog(p => [...p, `> ${cmd}`, `  [OK] Отправлено на ${selectedDevice}`])}
-                    className="text-[9px] font-mono px-2 py-0.5 rounded border border-border hover:border-[hsl(185_90%_50%/0.5)] hover:text-[hsl(185_90%_50%)] transition-colors text-muted-foreground">
+                    disabled={isOffline}
+                    className="text-[9px] font-mono px-2 py-0.5 rounded border border-border hover:border-[hsl(185_90%_50%/0.5)] hover:text-[hsl(185_90%_50%)] transition-colors text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed">
                     {cmd}
                   </button>
                 ))}
@@ -185,7 +207,11 @@ export function DevicesSection({
             </div>
             <div className="font-mono text-xs p-3 h-36 overflow-auto flex flex-col gap-0.5" style={{ background: "hsl(220 20% 5%)" }}>
               {cmdLog.slice(-10).map((line, i) => (
-                <div key={i} className={line.startsWith(">") ? "text-foreground" : "text-green-400/80"}>{line}</div>
+                <div key={i} className={
+                  line.includes("отключено") ? "text-red-400/80" :
+                  line.includes("включено") ? "text-green-400/80" :
+                  line.startsWith(">") ? "text-foreground" : "text-green-400/80"
+                }>{line}</div>
               ))}
               <div className="flex items-center gap-1 mt-1">
                 <span style={{ color: "hsl(185 90% 50%)" }}>›</span>
@@ -195,10 +221,12 @@ export function DevicesSection({
             <div className="border-t border-border flex">
               <input value={cmdInput} onChange={e => setCmdInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleCommand()}
-                placeholder="Введите команду..."
-                className="flex-1 bg-transparent px-4 py-2.5 text-xs font-mono outline-none placeholder:text-muted-foreground/40" />
+                disabled={isOffline}
+                placeholder={isOffline ? "Устройство отключено..." : "Введите команду..."}
+                className="flex-1 bg-transparent px-4 py-2.5 text-xs font-mono outline-none placeholder:text-muted-foreground/40 disabled:opacity-40" />
               <button onClick={handleCommand}
-                className="px-4 text-xs font-mono border-l border-border hover:bg-secondary transition-colors"
+                disabled={isOffline}
+                className="px-4 text-xs font-mono border-l border-border hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ color: "hsl(185 90% 50%)" }}>
                 ОТПР
               </button>
@@ -211,14 +239,14 @@ export function DevicesSection({
               {[
                 { label: "Частота", value: "2.4 GHz", editable: true },
                 { label: "Мощность сигнала", value: "85 dBm", editable: true },
-                { label: "Режим работы", value: "АКТИВНЫЙ", editable: false },
+                { label: "Режим работы", value: isOffline ? "ВЫКЛЮЧЕН" : "АКТИВНЫЙ", editable: false },
                 { label: "Шифрование", value: "AES-256", editable: false },
               ].map(p => (
                 <div key={p.label} className="flex items-center justify-between bg-secondary/30 rounded px-3 py-2">
                   <span className="text-[11px] font-mono text-muted-foreground">{p.label}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-mono" style={{ color: "hsl(185 90% 50%)" }}>{p.value}</span>
-                    {p.editable && <Icon name="Pencil" size={10} className="text-muted-foreground hover:text-foreground cursor-pointer" />}
+                    {p.editable && !isOffline && <Icon name="Pencil" size={10} className="text-muted-foreground hover:text-foreground cursor-pointer" />}
                   </div>
                 </div>
               ))}
@@ -232,11 +260,11 @@ export function DevicesSection({
 
 // ─── Monitor ──────────────────────────────────────────────────────────────────
 
-export function MonitorSection() {
+export function MonitorSection({ devices }: { devices: Device[] }) {
   return (
     <div className="flex flex-col gap-4 animate-fade-up">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {DEVICES.map(d => (
+        {devices.map(d => (
           <div key={d.id} className="bg-card border border-border rounded-lg p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-mono text-muted-foreground">{d.id}</span>

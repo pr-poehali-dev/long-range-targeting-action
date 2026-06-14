@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
-import { Section, DEVICES, ALERTS } from "@/components/dashboard/types";
+import { Section, DEVICES, ALERTS, Device } from "@/components/dashboard/types";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import {
   DashboardSection,
@@ -19,6 +19,10 @@ export default function Index() {
   const [cmdInput, setCmdInput] = useState("");
   const [cmdLog, setCmdLog] = useState<string[]>(["> Система готова. Введите команду."]);
   const [liveTime, setLiveTime] = useState(new Date());
+
+  // Переопределение статусов устройств (для кнопки отключения)
+  const [deviceStatuses, setDeviceStatuses] = useState<Record<string, Device["status"]>>({});
+
   const alertCount = ALERTS.filter(a => a.type !== "info").length;
 
   useEffect(() => {
@@ -42,6 +46,23 @@ export default function Index() {
     setCmdLog(prev => [...prev, `> ${cmd}`, `  [OK] Команда отправлена на ${selectedDevice}`]);
     setCmdInput("");
   };
+
+  const handleShutdown = (deviceId: string) => {
+    const current = deviceStatuses[deviceId] ?? DEVICES.find(d => d.id === deviceId)?.status ?? "online";
+    const next: Device["status"] = current === "offline" ? "online" : "offline";
+    setDeviceStatuses(prev => ({ ...prev, [deviceId]: next }));
+    const cmd = next === "offline" ? "SHUTDOWN" : "POWER_ON";
+    const result = next === "offline" ? "[OK] Устройство отключено" : "[OK] Устройство включено";
+    setCmdLog(prev => [...prev, `> ${cmd} ${deviceId}`, `  ${result}`]);
+  };
+
+  // Устройства с применёнными переопределениями статусов
+  const devicesWithStatus = DEVICES.map(d => ({
+    ...d,
+    status: deviceStatuses[d.id] ?? d.status,
+  }));
+
+  const onlineCount = devicesWithStatus.filter(d => d.status === "online").length;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background scanlines grid-bg">
@@ -69,7 +90,7 @@ export default function Index() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-xs font-mono text-muted-foreground hidden sm:block">
-              {DEVICES.filter(d => d.status === "online").length}/{DEVICES.length} устройств
+              {onlineCount}/{DEVICES.length} устройств
             </span>
             <span className="text-xs font-mono" style={{ color: "hsl(185 90% 50%)" }}>
               {liveTime.toLocaleTimeString("ru-RU")}
@@ -95,6 +116,7 @@ export default function Index() {
               alertCount={alertCount}
               selectedDevice={selectedDevice}
               setSelectedDevice={setSelectedDevice}
+              devices={devicesWithStatus}
             />
           )}
           {section === "devices" && (
@@ -106,9 +128,11 @@ export default function Index() {
               cmdLog={cmdLog}
               setCmdLog={setCmdLog}
               handleCommand={handleCommand}
+              devices={devicesWithStatus}
+              onShutdown={handleShutdown}
             />
           )}
-          {section === "monitor" && <MonitorSection />}
+          {section === "monitor" && <MonitorSection devices={devicesWithStatus} />}
           {section === "alerts" && <AlertsSection alertCount={alertCount} />}
           {section === "history" && <HistorySection />}
           {section === "settings" && <SettingsSection />}
